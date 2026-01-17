@@ -1,0 +1,230 @@
+<?php
+/**
+ * Plugin Name: TABBY: A Multi-media WooCommerce Product Tab Builder
+ * Version: 2.0.0
+ * Author: BravoTechnologies.com
+ * Author URI: https://bravotechnologies.com
+ * Description: Stability-focused build with Table support in WYSIWYG editors.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+define( 'TABBY_KEY', '_tabby_custom_tabs_data' );
+
+/** * MODULE 1: ADMIN UI */
+add_action( 'add_meta_boxes', function() {
+    add_meta_box('tabby_builder', 'TABBY: Product Resource Tabs by Bravo Technologies', 'tabby_builder_html', 'product', 'normal', 'high');
+});
+
+add_action( 'admin_enqueue_scripts', function($hook) {
+    if ( in_array($hook, ['post.php', 'post-new.php']) ) {
+        wp_enqueue_editor();
+    }
+});
+
+function tabby_builder_html( $post ) {
+    $tabs = get_post_meta( $post->ID, TABBY_KEY, true ) ?: ['row_0' => ['title' => '', 'layout' => 'editor', 'content' => '']];
+    wp_nonce_field( 'tabby_save_action', 'tabby_nonce_field' );
+    wp_enqueue_media();
+    ?>
+    <style>
+        .tabby-ctrl-bar { background: #f0f0f1; padding: 12px; border: 1px solid #ccd0d4; margin-bottom: 10px; display: flex; gap: 12px; border-radius: 4px; }
+        .tabby-tab-row { background: #fff; border: 1px solid #ccd0d4; margin-bottom: 15px; border-radius: 4px; border-left: 4px solid #2271b1; }
+        .tabby-tab-header { display: flex; gap: 10px; padding: 12px; align-items: center; cursor: move; border-bottom: 1px solid #eee; background: #fff; }
+        .tabby-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; padding: 15px; background: #fafafa; border: 1px dashed #dcdcde; margin-top: 10px; min-height: 80px; }
+        .tabby-admin-item { text-align: center; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; position: relative; cursor: grab; }
+        .tabby-admin-item img { width: 60px; height: 60px; object-fit: contain; display: block; margin: 0 auto 10px; pointer-events: none; }
+        .tabby-resource-label-input { width: 100%; font-size: 11px; padding: 4px; border: 1px solid #ccc; border-radius: 2px; text-align: center; }
+        .tabby-video-row { background: #fff; padding: 20px; border: 1px solid #ccd0d4; margin-bottom: 10px; position: relative; border-radius: 4px; box-shadow: inset 4px 0 0 #ff0000; }
+        .tabby-video-row input { margin-bottom: 8px; }
+        .tabby-remove-node { position: absolute; top: -8px; right: -8px; background: #cc0000; color: #fff; border: none; border-radius: 50%; cursor: pointer; width: 22px; height: 22px; line-height: 20px; font-weight: bold; z-index: 100; }
+        .tabby-hidden { display: none !important; }
+        .tabby-collapsed .tabby-tab-body { display: none; }
+        .ui-sortable-placeholder { border: 2px dashed #2271b1 !important; visibility: visible !important; background: #f0f8ff !important; height: 100px; }
+        /* Table tool styling fix */
+        .mce-tinymce { box-shadow: none !important; border: 1px solid #ccd0d4 !important; }
+    </style>
+
+    <div id="tabby-builder-container">
+        <div class="tabby-ctrl-bar">
+            <button type="button" class="button tabby-expand-all">Expand All</button>
+            <button type="button" class="button tabby-collapse-all">Collapse All</button>
+            <button type="button" class="button button-primary tabby-add-tab" style="margin-left:auto;">+ Create New Tab</button>
+        </div>
+
+        <div id="tabby-tabs-list">
+            <?php foreach ( $tabs as $id => $tab ) : 
+                $layout = $tab['layout'] ?? 'editor'; 
+                $id_clean = esc_attr($id);
+                $editor_id = 'ed_' . str_replace(['row_', ' '], ['', '_'], $id_clean);
+            ?>
+                <div class="tabby-tab-row postbox" data-id="<?php echo $id_clean; ?>">
+                    <div class="tabby-tab-header">
+                        <span class="dashicons dashicons-arrow-down-alt2 tabby-toggle-row"></span>
+                        <input type="text" name="tabby_data[<?php echo $id_clean; ?>][title]" value="<?php echo esc_attr($tab['title'] ?? ''); ?>" placeholder="Tab Title" style="flex-grow:1; font-weight:bold;">
+                        <select name="tabby_data[<?php echo $id_clean; ?>][layout]" class="tabby-layout-selector">
+                            <option value="editor" <?php selected($layout, 'editor'); ?>>TEXT EDITOR</option>
+                            <option value="grid" <?php selected($layout, 'grid'); ?>>PDF/IMAGE RESOURCES</option>
+                            <option value="video" <?php selected($layout, 'video'); ?>>VIDEO EMBED</option>
+                        </select>
+                        <button type="button" class="button-link-delete tabby-remove-tab" style="color:#a00;">Remove</button>
+                    </div>
+
+                    <div class="tabby-tab-body">
+                        <div class="view-editor <?php echo $layout !== 'editor' ? 'tabby-hidden' : ''; ?>">
+                            <div class="tabby-editor-wrap">
+                                <?php wp_editor($tab['content'] ?? '', $editor_id, [
+                                    'textarea_name' => "tabby_data[$id_clean][content]",
+                                    'textarea_rows' => 12,
+                                    'tinymce' => [
+                                        'plugins' => 'table,lists,link,hr,wpeditimage,wplink',
+                                        'toolbar1' => 'formatselect,bold,italic,bullist,numlist,blockquote,alignleft,aligncenter,alignright,link,table,wp_adv'
+                                    ]
+                                ]); ?>
+                            </div>
+                        </div>
+
+                        <div class="view-grid <?php echo $layout !== 'grid' ? 'tabby-hidden' : ''; ?>">
+                            <button type="button" class="button tabby-batch-upload">Batch Image/PDF Upload</button>
+                            <div class="tabby-admin-grid tabby-sortable-items">
+                                <?php if(!empty($tab['items'])) foreach ($tab['items'] as $it_id => $item) : ?>
+                                    <div class="tabby-admin-item">
+                                        <button type="button" class="tabby-remove-node">×</button>
+                                        <img src="<?php echo esc_url($item['thumb']); ?>">
+                                        <input type="text" class="tabby-resource-label-input" name="tabby_data[<?php echo $id_clean; ?>][items][<?php echo esc_attr($it_id); ?>][label]" value="<?php echo esc_attr($item['label']); ?>">
+                                        <input type="hidden" name="tabby_data[<?php echo $id_clean; ?>][items][<?php echo esc_attr($it_id); ?>][url]" value="<?php echo esc_url($item['url']); ?>">
+                                        <input type="hidden" name="tabby_data[<?php echo $id_clean; ?>][items][<?php echo esc_attr($it_id); ?>][thumb]" value="<?php echo esc_url($item['thumb']); ?>">
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <div class="view-video <?php echo $layout !== 'video' ? 'tabby-hidden' : ''; ?>">
+                            <div class="tabby-video-list">
+                                <?php if(!empty($tab['videos'])) foreach ($tab['videos'] as $v_id => $vid) : ?>
+                                    <div class="tabby-video-row">
+                                        <button type="button" class="tabby-remove-node">×</button>
+                                        <label><strong>Video Title</strong></label>
+                                        <input type="text" name="tabby_data[<?php echo $id_clean; ?>][videos][<?php echo esc_attr($v_id); ?>][v_title]" value="<?php echo esc_attr($vid['v_title'] ?? ''); ?>" class="widefat">
+                                        <label><strong>Embed URL</strong></label>
+                                        <input type="text" name="tabby_data[<?php echo $id_clean; ?>][videos][<?php echo esc_attr($v_id); ?>][v_embed]" value="<?php echo esc_attr($vid['v_embed'] ?? ''); ?>" class="widefat">
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <button type="button" class="button tabby-add-video-row">+ Add Video Link</button>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <script>
+    jQuery(document).ready(function($) {
+        function initTabSystem() {
+            $("#tabby-tabs-list").sortable({ handle: ".tabby-tab-header", placeholder: "ui-state-highlight", stop: function(e, ui) {
+                ui.item.find('.wp-editor-area').each(function() {
+                    var id = $(this).attr('id');
+                    if (tinymce.get(id)) {
+                        tinymce.execCommand('mceRemoveEditor', false, id);
+                        tinymce.execCommand('mceAddEditor', false, id);
+                    }
+                });
+            }});
+            $(".tabby-sortable-items").sortable({ placeholder: "ui-sortable-placeholder", tolerance: "pointer" });
+        }
+        initTabSystem();
+
+        $('.tabby-add-tab').on('click', function(e) {
+            e.preventDefault();
+            var ts = Date.now(), newId = 'row_' + ts, edId = 'ed_' + ts;
+            var html = `<div class="tabby-tab-row postbox" data-id="${newId}">
+                <div class="tabby-tab-header"><span class="dashicons dashicons-arrow-down-alt2 tabby-toggle-row"></span>
+                <input type="text" name="tabby_data[${newId}][title]" placeholder="New Tab" style="flex-grow:1; font-weight:bold;">
+                <select name="tabby_data[${newId}][layout]" class="tabby-layout-selector"><option value="editor">TEXT EDITOR</option><option value="grid">PDF/IMAGE RESOURCES</option><option value="video">VIDEO EMBED</option></select>
+                <button type="button" class="button-link-delete tabby-remove-tab" style="color:#a00;">Remove</button></div>
+                <div class="tabby-tab-body">
+                    <div class="view-editor"><div class="tabby-editor-wrap"><textarea id="${edId}" name="tabby_data[${newId}][content]" class="widefat" rows="12"></textarea></div></div>
+                    <div class="view-grid tabby-hidden"><button type="button" class="button tabby-batch-upload">Batch Upload</button><div class="tabby-admin-grid tabby-sortable-items"></div></div>
+                    <div class="view-video tabby-hidden"><div class="tabby-video-list"></div><button type="button" class="button tabby-add-video-row">+ Add Video Link</button></div>
+                </div></div>`;
+            $('#tabby-tabs-list').append(html);
+            if (wp.editor) {
+                wp.editor.initialize(edId, { 
+                    tinymce: { 
+                        wpautop: true, 
+                        plugins: 'table,lists,link,hr,wpeditimage,wplink',
+                        toolbar1: 'formatselect,bold,italic,bullist,numlist,blockquote,alignleft,aligncenter,alignright,link,table,wp_adv' 
+                    }, 
+                    quicktags: true 
+                });
+            }
+            initTabSystem();
+        });
+
+        // DELEGATED LISTENERS (Remains Unchanged)
+        $(document).on('click', '.tabby-batch-upload', function(e) {
+            e.preventDefault();
+            var grid = $(this).closest('.view-grid').find('.tabby-admin-grid'), tabId = $(this).closest('.tabby-tab-row').data('id');
+            var frame = wp.media({ title: 'Select Resources', multiple: true }).open();
+            frame.on('select', function() {
+                frame.state().get('selection').each(function(a) {
+                    var d = a.toJSON(), t = (d.sizes && d.sizes.thumbnail) ? d.sizes.thumbnail.url : d.icon, itId = 'item_' + Math.random().toString(36).substr(2, 9);
+                    grid.append(`<div class="tabby-admin-item"><button type="button" class="tabby-remove-node">×</button><img src="${t}"><input type="text" class="tabby-resource-label-input" name="tabby_data[${tabId}][items][${itId}][label]" value="${d.title}"><input type="hidden" name="tabby_data[${tabId}][items][${itId}][url]" value="${d.url}"><input type="hidden" name="tabby_data[${tabId}][items][${itId}][thumb]" value="${t}"></div>`);
+                });
+                initTabSystem();
+            });
+        });
+        $(document).on('click', '.tabby-add-video-row', function() {
+            var list = $(this).siblings('.tabby-video-list'), tabId = $(this).closest('.tabby-tab-row').data('id'), vId = 'vid_' + Math.random().toString(36).substr(2, 9);
+            list.append(`<div class="tabby-video-row"><button type="button" class="tabby-remove-node">×</button><label><strong>Video Title</strong></label><input type="text" name="tabby_data[${tabId}][videos][${vId}][v_title]" class="widefat"><label><strong>Embed URL</strong></label><input type="text" name="tabby_data[${tabId}][videos][${vId}][v_embed]" class="widefat"></div>`);
+        });
+        $(document).on('change', '.tabby-layout-selector', function() {
+            var row = $(this).closest('.tabby-tab-row');
+            row.find('.view-editor, .view-grid, .view-video').addClass('tabby-hidden');
+            row.find('.view-' + $(this).val()).removeClass('tabby-hidden');
+        });
+        $(document).on('click', '.tabby-remove-node, .tabby-remove-tab', function() { if(confirm("Are you sure?")) $(this).closest('.tabby-tab-row, .tabby-admin-item, .tabby-video-row').remove(); });
+        $(document).on('click', '.tabby-toggle-row', function() { $(this).closest('.tabby-tab-row').toggleClass('tabby-collapsed'); });
+        $(document).on('click', '.tabby-expand-all', function(){ $('.tabby-tab-row').removeClass('tabby-collapsed'); });
+        $(document).on('click', '.tabby-collapse-all', function(){ $('.tabby-tab-row').addClass('tabby-collapsed'); });
+    });
+    </script>
+    <?php
+}
+
+add_action( 'save_post_product', function( $post_id ) {
+    if ( ! isset( $_POST['tabby_nonce_field'] ) || ! wp_verify_nonce( $_POST['tabby_nonce_field'], 'tabby_save_action' ) ) return;
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
+    if ( isset($_POST['tabby_data']) ) update_post_meta($post_id, TABBY_KEY, $_POST['tabby_data']);
+});
+
+add_filter( 'woocommerce_product_tabs', function( $tabs ) {
+    global $post;
+    $data = get_post_meta($post->ID, TABBY_KEY, true);
+    if ( is_array($data) ) {
+        foreach($data as $id => $tab) {
+            $tabs['tabby_'.$id] = [ 'title' => esc_html($tab['title'] ?: 'Resources'), 'priority' => 50, 'callback' => 'tabby_render_tab_content', 'tab_data' => $tab ];
+        }
+    }
+    return $tabs;
+});
+
+function tabby_render_tab_content($key, $tab_info) {
+    $tab = $tab_info['tab_data']; $layout = $tab['layout'] ?? 'editor';
+    if ( $layout === 'grid' && !empty($tab['items']) ) {
+        echo '<style>.tabby-grid { display: flex; flex-wrap: wrap; gap: 45px; justify-content: flex-start; padding: 20px 0; } .tabby-item { flex: 0 0 140px; text-align: center; margin-bottom: 25px; } .tabby-img { width: 100px; height: 100px; object-fit: contain; border: 1px solid #eee; padding: 4px; margin: 0 auto 12px; display: block; background: #fff; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); transition: all 0.2s ease; } .tabby-item a:hover .tabby-img { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); border-color: #2271b1; } .tabby-label { display: block; font-size: 13px; line-height: 1.3; font-weight: 500; color: #333; }</style>';
+        echo '<div class="tabby-grid">';
+        foreach($tab['items'] as $item) { echo '<div class="tabby-item"><a href="'.esc_url($item['url']).'" target="_blank"><img src="'.esc_url($item['thumb']).'" class="tabby-img"><span class="tabby-label">'.esc_html($item['label']).'</span></a></div>'; }
+        echo '</div>';
+    } elseif ( $layout === 'video' && !empty($tab['videos']) ) {
+        foreach($tab['videos'] as $vid) {
+            if(!empty($vid['v_embed'])) {
+                $raw_url = $vid['v_embed'];
+                if (preg_match('%(?:youtube(?:-nocookie)?\.com/(?:[^/]+/.+/|(?:v|e(?:mbed)?)/|.*[?&]v=)|youtu\.be/)([^"&?/ ]{11})%i', $raw_url, $match)) { $embed_url = "https://www.youtube.com/embed/" . $match[1]; }
+                elseif (preg_match('%vimeo\.com/(?:channels/(?:\w+/)?|groups/(?:[^\/]*)/videos/|album/(?:\d+)/video/|video/|)(\d+)(?:$|/|\?)%i', $raw_url, $match)) { $embed_url = "https://player.vimeo.com/video/" . $match[1]; }
+                else { $embed_url = $raw_url; }
+                echo '<div style="margin-bottom:35px;"><h3 style="margin-bottom:12px;">'.esc_html($vid['v_title'] ?? '').'</h3><div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:8px; background:#000;"><iframe src="'.esc_url($embed_url).'" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allowfullscreen></iframe></div></div>';
+            }
+        }
+    } else { echo apply_filters('the_content', $tab['content'] ?? ''); }
+}
