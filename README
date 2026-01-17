@@ -1,0 +1,59 @@
+=== TABBY: A Multi-media WooCommerce Product Tab Builder ===
+Contributors: BravoTechnologies
+Tags: woocommerce, product tabs, pdf resources, video gallery, tab builder
+Requires at least: 5.8
+Tested up to: 6.4
+Requires PHP: 7.4
+Stable tag: 1.9.7
+License: GPLv2 or later
+
+A robust, multi-media tab builder for WooCommerce. Create custom text editors, resource grids for PDFs/Images, and high-fidelity video galleries.
+
+== Description ==
+
+**TABBY** is designed for store owners who need more than just a text box for their product descriptions. Built by **BravoTechnologies.com**, this plugin allows you to organize technical data, marketing videos, and downloadable resources into a clean, professional tabbed interface.
+
+### Key Features:
+* **Three Layout Modes:** Choose between a standard Text Editor, a Resource Grid (for PDFs/Images), or a Video Embed Gallery.
+* **Batch Management:** Upload dozens of resources at once with the native WordPress media gallery.
+* **Smart Labels:** TABBY automatically pulls filenames from the media library to create resource labels, which you can then rename manually.
+* **Drag-and-Drop Organization:** Reorder entire tabs or individual items within a resource grid with ease.
+* **Performance Optimized:** Clean frontend CSS with zero bloat, featuring high-fidelity hover effects and responsive layouts.
+* **Universal Video Support:** Automatically parses YouTube and Vimeo links into high-performance responsive embeds.
+
+== Installation ==
+
+1. Upload the `tabby-builder` folder to the `/wp-content/plugins/` directory.
+2. Activate the plugin through the 'Plugins' menu in WordPress.
+3. Navigate to any WooCommerce Product and find the "TABBY: Product Resource Tabs" meta box below the main editor.
+
+== Frequently Asked Questions ==
+
+= How many tabs can I create? =
+There is no hard limit. You can add as many tabs as your product requires.
+
+= Will I lose my data if I update? =
+No. TABBY uses a locked "Hard-Schema" naming convention (`_tabby_custom_tabs_data`) ensuring that your data persists across version updates and theme changes.
+
+= What image sizes does the resource grid use? =
+The admin view uses standard thumbnails, while the frontend displays resources in a 140px flex-container with 100px icons for a consistent, professional look.
+
+== Screenshots ==
+
+1. The Admin Builder showing the multi-media selection.
+2. The Resource Grid layout on a live product page.
+3. The Video Gallery with responsive YouTube embeds.
+
+== Changelog ==
+
+= 1.9.7 =
+* Restored original Video Embed formatting.
+* Fixed "New Tab" button initialization logic.
+* Finalized BravoTechnologies branding and meta hooks.
+
+= 1.9.4 =
+* Added drag-and-drop item reordering within the PDF/Image grid.
+
+= 1.9.0 =
+* Initial branding transition to TABBY.
+* Added Batch Upload and Smart Labeling.
